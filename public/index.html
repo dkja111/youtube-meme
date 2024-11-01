@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube 밈 생성기</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #1a73e8;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #444;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        .time-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #1557b0;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #ffe6e6;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .result {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .result video {
+            width: 100%;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .download-btn {
+            background-color: #28a745;
+        }
+
+        .download-btn:hover {
+            background-color: #218838;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1a73e8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>YouTube 밈 생성기</h1>
+        
+        <form id="memeForm">
+            <div class="form-group">
+                <label for="url">YouTube URL</label>
+                <input 
+                    type="text" 
+                    id="url" 
+                    placeholder="https://youtube.com/watch?v=..." 
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="text">밈 텍스트</label>
+                <input 
+                    type="text" 
+                    id="text" 
+                    placeholder="텍스트를 입력하세요" 
+                    required
+                >
+            </div>
+
+            <div class="time-inputs">
+                <div class="form-group">
+                    <label for="startTime">시작 시간 (초)</label>
+                    <input 
+                        type="number" 
+                        id="startTime" 
+                        value="0" 
+                        min="0" 
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="duration">길이 (초)</label>
+                    <input 
+                        type="number" 
+                        id="duration" 
+                        value="5" 
+                        min="1" 
+                        max="60" 
+                        required
+                    >
+                </div>
+            </div>
+
+            <button type="submit" id="submitBtn">밈 만들기</button>
+        </form>
+
+        <div id="error" class="error"></div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>밈 생성 중...</p>
+        </div>
+
+        <div id="result" class="result">
+            <video id="resultVideo" controls></video>
+            <button id="downloadBtn" class="download-btn">다운로드</button>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('memeForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const error = document.getElementById('error');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const resultVideo = document.getElementById('resultVideo');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // UI 초기화
+            error.style.display = 'none';
+            result.style.display = 'none';
+            loading.style.display = 'block';
+            submitBtn.disabled = true;
+
+            try {
+                const formData = {
+                    url: document.getElementById('url').value,
+                    text: document.getElementById('text').value,
+                    startTime: parseFloat(document.getElementById('startTime').value),
+                    duration: parseFloat(document.getElementById('duration').value)
+                };
+
+                const response = await fetch('/api/create-meme', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    throw new Error('밈 생성에 실패했습니다');
+                }
+
+                const blob = await response.blob();
+                const videoUrl = URL.createObjectURL(blob);
+                
+                resultVideo.src = videoUrl;
+                result.style.display = 'block';
+                
+                // 다운로드 버튼 설정
+                downloadBtn.onclick = () => {
+                    const a = document.createElement('a');
+                    a.href = videoUrl;
+                    a.download = 'meme.mp4';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                };
+
+            } catch (err) {
+                error.textContent = err.message;
+                error.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
